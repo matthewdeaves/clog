@@ -45,6 +45,9 @@ void        clog_shutdown(void);
 int         clog_set_file(const char *filename);
 int         clog_set_append(int enable);
 
+/* Runtime level control */
+void        clog_set_level(ClogLevel level);
+
 /* Logging */
 #if defined(__GNUC__)
 void        clog_write(ClogLevel level, const char *fmt, ...)

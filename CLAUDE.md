@@ -8,17 +8,19 @@ clog — Minimal C89 logging library for Classic Macintosh and modern systems. O
 
 ## Build & Test
 
+Run `./setup.sh` to configure everything (sets `$CLOG_DIR` to the project root).
+
 ```bash
 # POSIX build + test
 mkdir -p build && cd build && cmake .. && make && ctest --output-on-failure
 
 # 68k cross-compile (produces libclog.a only, no tests)
 mkdir -p build-68k && cd build-68k
-cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/m68k-apple-macos/cmake/retro68.toolchain.cmake && make
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/m68k-apple-macos/cmake/retro68.toolchain.cmake && make
 
 # PPC cross-compile (produces libclog.a only, no tests)
 mkdir -p build-ppc && cd build-ppc
-cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake && make
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/retroppc.toolchain.cmake && make
 ```
 
 ## Code Constraints

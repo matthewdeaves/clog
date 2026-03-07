@@ -95,6 +95,11 @@ int clog_set_append(int enable)
     return 0;
 }
 
+void clog_set_level(ClogLevel level)
+{
+    clog_state.min_level = level;
+}
+
 int clog_set_file(const char *filename)
 {
     if (clog_state.initialized)

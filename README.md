@@ -13,6 +13,21 @@ clog_shutdown();
 
 6 functions, 4 macros. Output: `[1234][INF] Connected to PlayerTwo`
 
+## Prerequisites
+
+System packages required: `gcc`, `cmake`, `make`.
+
+- **Ubuntu/Debian:** `sudo apt install build-essential cmake`
+- **macOS:** Install Xcode Command Line Tools (`xcode-select --install`) + `brew install cmake`
+
+## Setup
+
+```bash
+./setup.sh
+```
+
+This configures everything needed to build clog. It also sets the `$CLOG_DIR` environment variable, which points to the clog project root and is used by downstream projects to locate clog.
+
 ## Build
 
 ```bash
@@ -99,3 +114,11 @@ Static allocation only, zero heap usage:
 - No dynamic allocation
 - Not interrupt-safe (log from main loop only)
 - Under 500 lines total
+
+## Dependency Chain
+
+clog is standalone. It is used by [peertalk](https://github.com/matthewdeaves/peertalk) and [csend](https://github.com/matthewdeaves/csend).
+
+## Next Step
+
+After setting up clog, set up [peertalk](https://github.com/matthewdeaves/peertalk).
