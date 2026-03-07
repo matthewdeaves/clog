@@ -6,7 +6,7 @@ A minimal C logging library for Classic Macintosh and modern systems. One header
 
 ## What It's For
 
-PeerTalk (and any other Classic Mac C project) needs logging that works on System 6 through modern Linux. clog is that logging library.
+Classic Mac C projects need logging that works on System 6 through modern Linux. clog is that logging library.
 
 ## What the Developer Sees
 
@@ -28,7 +28,7 @@ That's the whole API for 90% of usage. Init, log, shutdown.
 
 1. **One header, two implementations.** `clog.h` is the public API. `clog_posix.c` uses stdio. `clog_mac.c` uses File Manager. No ifdefs in application code.
 
-2. **Four levels, no categories.** Error, warn, info, debug. If you need categories, use the message text. Categories were over-engineered in v1 — none of the three PeerTalk apps ever filtered by category.
+2. **Four levels, no categories.** Error, warn, info, debug. If you need categories, use the message text. Categories add complexity without value — no consumer has ever filtered by category.
 
 3. **ISR-safe by prevention.** clog is NOT safe to call from interrupt context. The ISR safety rule is enforced by documentation and code review, not by runtime checks. If you're in an ASR/notifier, don't call clog. Set a flag, log from the main loop.
 
@@ -51,7 +51,7 @@ That's the whole API for 90% of usage. Init, log, shutdown.
 
 ## What Doesn't Ship
 
-- Thread safety (single-threaded design, same as PeerTalk)
+- Thread safety (single-threaded design)
 - Category filtering
 - Callback/hook system
 - Performance/structured logging
@@ -61,7 +61,7 @@ That's the whole API for 90% of usage. Init, log, shutdown.
 ## Definition of Done
 
 clog is done when:
-- PeerTalk can link against it on POSIX, 68k, and PPC
+- Any C89 project can link against libclog.a on POSIX, 68k, and PPC
 - `CLOG_INFO("hello %s", name)` writes to stderr on Linux and a file on Mac
 - `-DCLOG_STRIP` produces zero logging code
 - The whole thing fits in one screen of code per file

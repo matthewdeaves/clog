@@ -1,44 +1,48 @@
-# clog
+# CLAUDE.md
 
-Minimal C89 logging library for Classic Macintosh and modern systems.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Purpose
+## Project
 
-Provides `CLOG_ERR/WARN/INFO/DEBUG` macros that write timestamped messages to stderr (POSIX) or a text file (Classic Mac). Used by PeerTalk SDK and any other Classic Mac C project that needs logging.
+clog — Minimal C89 logging library for Classic Macintosh and modern systems. One header (`clog.h`), two implementations (`clog_posix.c`, `clog_mac.c`). Standalone library with zero consumer dependencies.
 
-## Design
+## Build & Test
 
-- One header (`clog.h`), two implementations (`clog_posix.c`, `clog_mac.c`)
-- 5 functions, 4 convenience macros
-- C89 compatible, no dynamic allocation
-- Compile-time stripping with `-DCLOG_STRIP`
-- NOT interrupt-safe (log from main loop only)
+```bash
+# POSIX build + test
+mkdir -p build && cd build && cmake .. && make && ctest --output-on-failure
 
-## Build Environment
+# 68k cross-compile (produces libclog.a only, no tests)
+mkdir -p build-68k && cd build-68k
+cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/m68k-apple-macos/cmake/retro68.toolchain.cmake && make
 
-All builds run natively on the host (Ubuntu 25.10):
-
-- **POSIX**: `cmake .. && make`
-- **68k**: `cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/m68k-apple-macos/cmake/retro68.toolchain.cmake && make`
-- **PPC**: `cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/powerpc-apple-macos/cmake/retro68.toolchain.cmake && make`
-
-## File Structure
-
-```
-include/
-  clog.h              # Public API
-src/
-  clog_posix.c        # POSIX: fprintf to stderr/file
-  clog_mac.c          # Classic Mac: File Manager (FSOpen/FSWrite)
-tests/
-  test_clog.c         # Basic test
-CMakeLists.txt        # Build config
+# PPC cross-compile (produces libclog.a only, no tests)
+mkdir -p build-ppc && cd build-ppc
+cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake && make
 ```
 
-## Relationship to PeerTalk
+## Code Constraints
 
-clog is a dependency of PeerTalk (`~/Desktop/peertalk`). PeerTalk includes `clog.h` in internal .c files (never in `peertalk.h`). Build clog first, then PeerTalk links against `libclog.a`.
+- **C89/C90 strict** — no `//` comments, no mixed declarations, no VLAs
+- **No `-pedantic`** — variadic macros use `##__VA_ARGS__` GCC extension
+- **No dynamic allocation** — static buffers only (256B POSIX, 192B Mac)
+- **POSIX impl** needs `#define _POSIX_C_SOURCE 200112L` before includes for vsnprintf
+- **Under 500 lines total** across clog.h + clog_posix.c + clog_mac.c
+- **Not interrupt-safe** — never call from ASR/notifier/ISR
 
-## Target Size
+## Architecture
 
-Under 500 lines total. Header ~100 lines, each implementation ~150 lines.
+- `include/clog.h` — public API: 5 functions, 4 convenience macros, compile-time stripping via `CLOG_STRIP` / `CLOG_MIN_LEVEL`
+- `src/clog_posix.c` — fprintf to stderr/file, gettimeofday() timestamps
+- `src/clog_mac.c` — File Manager (Create/FSOpen/FSWrite/FSClose), TickCount() timestamps
+- `tests/test_clog.c` — POSIX-only test suite, returns 0/1
+- `CMakeLists.txt` — selects implementation via `CMAKE_SYSTEM_NAME MATCHES "Retro68|RetroPPC"`
+
+## Retro68 Toolchain
+
+- 68k: `CMAKE_SYSTEM_NAME` = `Retro68`, toolchain = `retro68.toolchain.cmake`
+- PPC: `CMAKE_SYSTEM_NAME` = `RetroPPC`, toolchain = `retroppc.toolchain.cmake`
+
+## Spec Artifacts
+
+Design docs in `specs/001-clog-library/`: spec.md, plan.md, tasks.md, research.md, contracts/, data-model.md, quickstart.md. Constitution at `.specify/memory/constitution.md` (v1.1.0, 9 principles).

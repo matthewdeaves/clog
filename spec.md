@@ -132,7 +132,7 @@ if (state->error_occurred) {
 
 - Output: `fprintf(stderr, ...)` or `fprintf(file, ...)`
 - Timestamp: `gettimeofday()` delta from init time
-- No thread safety (single-threaded design, same as PeerTalk)
+- No thread safety (single-threaded design)
 - Line buffered output
 
 ### Classic Mac (`clog_mac.c`)
@@ -148,7 +148,7 @@ if (state->error_occurred) {
 
 - Static library: `libclog.a`
 - One .c file compiled per platform (selected by build system)
-- CMake with Retro68 toolchain support, same as PeerTalk
+- CMake with Retro68 toolchain support
 - Header-only mode possible: define `CLOG_IMPLEMENTATION` in one .c file to include the implementation (optional convenience, not required)
 
 ## 5. What's Out of Scope
