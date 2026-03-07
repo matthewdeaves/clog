@@ -1,4 +1,5 @@
 name: CI
+
 on:
   push:
     branches: [main]
@@ -6,13 +7,67 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  build-posix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+
+      - name: Build
+        run: mkdir build && cd build && cmake .. && make
+
+      - name: Test
+        run: cd build && ctest --output-on-failure
+
+  static-analysis:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install deps
-        run: sudo apt-get install -y build-essential cmake
-      - name: Build
-        run: mkdir build && cd build && cmake .. && make
-      - name: Test
-        run: cd build && ctest --output-on-failure
+
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --error-exitcode=1 \
+            --enable=warning,performance \
+            --suppress=missingIncludeSystem \
+            --inline-suppr \
+            -I include \
+            src/
+
+  # Cross-compilation jobs - may fail if container lacks MPW Interfaces
+  # These verify the code compiles for Classic Mac targets when headers are available
+  build-68k:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container:
+      image: ghcr.io/matthewdeaves/retro68:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for 68k
+        run: |
+          mkdir build-68k && cd build-68k
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/m68k-apple-macos/cmake/retro68.toolchain.cmake
+          make
+
+  build-ppc:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container:
+      image: ghcr.io/matthewdeaves/retro68:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for PPC
+        run: |
+          mkdir build-ppc && cd build-ppc
+          cmake .. -DCMAKE_TOOLCHAIN_FILE=/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake
+          make

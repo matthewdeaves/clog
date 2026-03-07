@@ -2,11 +2,12 @@
 #
 # autorun.sh — Unattended speckit.implement loop for Claude Code
 #
-# Runs Claude Code in a loop, executing tasks from the active feature's
-# tasks.md. Designed for overnight or unattended implementation runs.
+# Auto-detects the highest-numbered spec with incomplete tasks and runs
+# Claude Code in a loop to implement them.
 #
 # Usage:
-#   ./tools/autorun.sh              # Run from project root
+#   ./tools/autorun.sh              # Auto-detect feature, run from project root
+#   ./tools/autorun.sh --feature=001-clog-library  # Explicit feature
 #   ./tools/autorun.sh --dry-run    # Show what would happen without running Claude
 #   ./tools/autorun.sh --resume     # Skip build check, resume after manual fix
 #   ./tools/autorun.sh --notify     # Send desktop notification on completion
@@ -22,15 +23,40 @@ if [ -t 0 ]; then
     exec < /dev/null
 fi
 
+# --- Auto-detect feature ---
+auto_detect_feature() {
+    local best_dir=""
+    local best_num=0
+    for dir in specs/[0-9]*; do
+        [ -d "$dir" ] || continue
+        local tasks="$dir/tasks.md"
+        [ -f "$tasks" ] || continue
+        local remaining
+        remaining=$(grep -c '^\- \[ \]' "$tasks" 2>/dev/null) || true
+        [ "${remaining:-0}" -gt 0 ] || continue
+        local num
+        num=$(basename "$dir" | grep -oE '^[0-9]+' | sed 's/^0*//')
+        num="${num:-0}"
+        if [ "$num" -gt "$best_num" ]; then
+            best_num="$num"
+            best_dir="$dir"
+        fi
+    done
+    if [ -n "$best_dir" ]; then
+        echo "$best_dir"
+    fi
+}
+
 # --- Configuration ---
 MAX_ITERATIONS=50
-TASKS_FILE="specs/001-clog-library/tasks.md"
+FEATURE_DIR=""
+TASKS_FILE=""
 COOLDOWN_SECONDS=15
-RATE_LIMIT_WAIT_INITIAL=300  # 5 minutes first backoff
-RATE_LIMIT_WAIT_MAX=3600     # 1 hour max backoff
-STUCK_THRESHOLD=3            # Stop after N iterations with no progress
-BUILD_CHECK_AFTER=true       # Verify build compiles after each iteration
-ITERATION_TIMEOUT=1800       # 30 minutes per iteration (clog tasks are small)
+RATE_LIMIT_WAIT_INITIAL=300
+RATE_LIMIT_WAIT_MAX=3600
+STUCK_THRESHOLD=3
+BUILD_CHECK_AFTER=true
+ITERATION_TIMEOUT=1800  # 30 minutes per iteration (clog tasks are small)
 DRY_RUN=false
 RESUME=false
 NOTIFY=false
@@ -41,11 +67,17 @@ for arg in "$@"; do
         --dry-run)  DRY_RUN=true ;;
         --resume)   RESUME=true ;;
         --notify)   NOTIFY=true ;;
+        --feature=*)
+            FEATURE_DIR="specs/${arg#--feature=}"
+            ;;
         --help|-h)
-            echo "Usage: $0 [--dry-run] [--resume] [--notify]"
-            echo "  --dry-run   Show status without running Claude"
-            echo "  --resume    Skip initial build check (after manual fix)"
-            echo "  --notify    Send desktop notification on completion (Linux)"
+            echo "Usage: $0 [--dry-run] [--resume] [--notify] [--feature=NNN-name]"
+            echo "  --dry-run          Show status without running Claude"
+            echo "  --resume           Skip initial build check (after manual fix)"
+            echo "  --notify           Send desktop notification on completion (Linux)"
+            echo "  --feature=NAME     Use specific spec dir (e.g., --feature=001-clog-library)"
+            echo ""
+            echo "Without --feature, auto-detects the highest-numbered spec with incomplete tasks."
             exit 0
             ;;
         *)
@@ -54,6 +86,21 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+# --- Resolve feature directory and tasks file ---
+if [ -z "$FEATURE_DIR" ]; then
+    FEATURE_DIR="$(auto_detect_feature)"
+    if [ -z "$FEATURE_DIR" ]; then
+        echo "ERROR: No spec directory with incomplete tasks found."
+        echo "Hint: Use --feature=NNN-name to specify manually."
+        exit 1
+    fi
+    echo "Auto-detected feature: $FEATURE_DIR"
+fi
+
+TASKS_FILE="$FEATURE_DIR/tasks.md"
+FEATURE_NAME="$(basename "$FEATURE_DIR")"
+export SPECIFY_FEATURE="$FEATURE_NAME"
 
 # --- Ensure we're in project root ---
 if [ ! -f "$TASKS_FILE" ]; then
@@ -114,7 +161,6 @@ check_all_builds() {
     local label="$1"
     local any_failed=false
 
-    # Always check POSIX
     log "  Checking POSIX build..."
     mkdir -p build
     if ! (cd build && cmake .. 2>&1 && make 2>&1) > "$LOG_DIR/build-${label}-posix.log" 2>&1; then
@@ -124,27 +170,17 @@ check_all_builds() {
         log "  POSIX build OK"
     fi
 
-    # Check 68k cross-build if directory exists
-    if [ -d "build-68k" ]; then
-        log "  Checking build-68k..."
-        if ! (cd build-68k && make 2>&1) > "$LOG_DIR/build-${label}-68k.log" 2>&1; then
-            log "  WARNING: 68k build failed — see $LOG_DIR/build-${label}-68k.log"
-            any_failed=true
-        else
-            log "  68k build OK"
+    for build_dir in build-68k build-ppc; do
+        if [ -d "$build_dir" ]; then
+            log "  Checking $build_dir..."
+            if ! (cd "$build_dir" && make 2>&1) > "$LOG_DIR/build-${label}-${build_dir}.log" 2>&1; then
+                log "  WARNING: $build_dir build failed — see $LOG_DIR/build-${label}-${build_dir}.log"
+                any_failed=true
+            else
+                log "  $build_dir build OK"
+            fi
         fi
-    fi
-
-    # Check PPC cross-build if directory exists
-    if [ -d "build-ppc" ]; then
-        log "  Checking build-ppc..."
-        if ! (cd build-ppc && make 2>&1) > "$LOG_DIR/build-${label}-ppc.log" 2>&1; then
-            log "  WARNING: PPC build failed — see $LOG_DIR/build-${label}-ppc.log"
-            any_failed=true
-        else
-            log "  PPC build OK"
-        fi
-    fi
+    done
 
     if [ "$any_failed" = true ]; then
         return 1
@@ -166,9 +202,8 @@ send_notification() {
 
 update_status_file() {
     local status="$1"
-    local status_dir="logs"
-    mkdir -p "$status_dir"
-    echo "$status" > "$status_dir/autorun-latest-status.txt"
+    mkdir -p logs
+    echo "$status" > logs/autorun-latest-status.txt
 }
 
 # --- Git safety snapshot ---
@@ -199,7 +234,7 @@ You are running in unattended automation mode.
 
 ## Your job
 
-Run /speckit.implement to execute tasks from specs/001-clog-library/tasks.md. Implement as many tasks as you can in this session, working through them in phase order.
+Run /speckit.implement to execute tasks from ${TASKS_FILE}. Implement as many tasks as you can in this session, working through them in phase order.
 
 ## Current progress
 
@@ -219,7 +254,7 @@ Run /speckit.implement to execute tasks from specs/001-clog-library/tasks.md. Im
 8. For cross-compile verification tasks, use the Retro68 toolchain files:
    - 68k: cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/m68k-apple-macos/cmake/retro68.toolchain.cmake
    - PPC: cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/powerpc-apple-macos/cmake/retroppc.toolchain.cmake
-9. **Feedback-first rule**: When testing reveals unexpected platform behavior (crash, wrong output, or any result that contradicts assumptions in research.md or spec.md), run \`/speckit.feedback\` BEFORE implementing a fix. This creates an R-entry in research.md, updates spec artifacts, and generates remediation tasks. For straightforward tasks where requirements are already documented, implement directly.
+9. **Feedback-first rule**: When testing reveals unexpected behavior, run \`/speckit.feedback\` BEFORE implementing a fix.
 
 ## When finished
 
@@ -250,7 +285,6 @@ if [ "$REMAINING_BEFORE" -eq 0 ]; then
     exit 0
 fi
 
-# Dry run — just list all remaining tasks and exit
 if [ "$DRY_RUN" = true ]; then
     log ""
     log "Remaining tasks:"
@@ -262,7 +296,6 @@ if [ "$DRY_RUN" = true ]; then
     exit 0
 fi
 
-# Initial build check (skip with --resume)
 if [ "$RESUME" = false ]; then
     if [ -d "build" ]; then
         log "Running initial build check..."
@@ -277,7 +310,6 @@ if [ "$RESUME" = false ]; then
     fi
 fi
 
-# Track state across iterations
 LAST_DONE_COUNT="$DONE_BEFORE"
 STUCK_COUNT=0
 RATE_LIMIT_CONSECUTIVE=0
@@ -297,20 +329,17 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
     update_status_file "RUNNING: Iteration $i, $REMAINING_NOW remaining"
 
-    # All done?
     if [ "$REMAINING_NOW" -eq 0 ]; then
         log "ALL TASKS COMPLETE"
         break
     fi
 
-    # Stuck detection
     if [ "$DONE_NOW" -eq "$LAST_DONE_COUNT" ] && [ "$i" -gt 1 ] && [ "$RATE_LIMIT_CONSECUTIVE" -eq 0 ]; then
         STUCK_COUNT=$((STUCK_COUNT + 1))
         log "WARNING: No progress after successful run (stuck count: $STUCK_COUNT/$STUCK_THRESHOLD)"
         if [ "$STUCK_COUNT" -ge "$STUCK_THRESHOLD" ]; then
             log "STUCK: Same task failed $STUCK_THRESHOLD times. Stopping."
             log "Last attempted task: $NEXT_TASK"
-            log "Review logs in $LOG_DIR for errors."
             update_status_file "STUCK: $NEXT_TASK failed $STUCK_THRESHOLD times"
             send_notification "Autorun STUCK" "Task failed $STUCK_THRESHOLD times: $NEXT_TASK"
             exit 1
@@ -320,13 +349,10 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
     fi
     LAST_DONE_COUNT="$DONE_NOW"
 
-    # Snapshot git state before
     git_snapshot "before-iter-$(printf '%03d' "$i")"
 
-    # Build the prompt
     PROMPT="$(build_prompt "$DONE_NOW" "$REMAINING_NOW" "$NEXT_TASK")"
 
-    # Run Claude with per-iteration timeout and line-buffered output
     ITER_LOG="$LOG_DIR/iter-$(printf '%03d' "$i")-$(date +%H%M%S).log"
     log "Running Claude... (log: $ITER_LOG)"
 
@@ -341,7 +367,6 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
             < /dev/null 2>&1 | tee "$ITER_LOG" || CLAUDE_EXIT=$?
     fi
 
-    # Check for timeout (exit code 124 from timeout command)
     if [ "$CLAUDE_EXIT" -eq 124 ]; then
         log "TIMEOUT: Iteration $i killed after $((ITERATION_TIMEOUT / 60)) minutes"
         git_snapshot "after-iter-$(printf '%03d' "$i")"
@@ -350,20 +375,16 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
         continue
     fi
 
-    # Snapshot git state after
     git_snapshot "after-iter-$(printf '%03d' "$i")"
 
-    # Check for completion signal
     if grep -q "ALL_TASKS_COMPLETE" "$ITER_LOG"; then
         log "ALL TASKS COMPLETE (reported by Claude)"
         break
     fi
 
-    # Check for rate limiting or errors
     if grep -qiE "rate.limit|usage.limit|capacity|overloaded|529|quota|too many|throttl" "$ITER_LOG" || [ "$CLAUDE_EXIT" -ne 0 ]; then
         RATE_LIMIT_CONSECUTIVE=$((RATE_LIMIT_CONSECUTIVE + 1))
 
-        # Exponential backoff: 5min, 10min, 20min, 40min, capped at 60min
         BACKOFF=$((RATE_LIMIT_WAIT_INITIAL * (2 ** (RATE_LIMIT_CONSECUTIVE - 1))))
         if [ "$BACKOFF" -gt "$RATE_LIMIT_WAIT_MAX" ]; then
             BACKOFF=$RATE_LIMIT_WAIT_MAX
@@ -375,10 +396,8 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
         log "Backing off ${BACKOFF_MIN}m (resuming ~${RESUME_TIME})..."
         sleep "$BACKOFF"
     else
-        # Success — reset consecutive rate limit counter
         RATE_LIMIT_CONSECUTIVE=0
 
-        # Cross-build verification after successful iteration
         if [ "$BUILD_CHECK_AFTER" = true ]; then
             log "Running cross-build verification..."
             if ! check_all_builds "iter-$(printf '%03d' "$i")"; then
@@ -392,7 +411,6 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
     fi
 done
 
-# --- Final summary ---
 DONE_FINAL="$(count_done)"
 REMAINING_FINAL="$(count_remaining)"
 ELAPSED_TASKS=$((DONE_FINAL - DONE_BEFORE))
@@ -408,13 +426,11 @@ log "Logs: $LOG_DIR"
 
 if [ "$REMAINING_FINAL" -eq 0 ]; then
     log "SUCCESS: All tasks implemented."
-    log "=========================================="
     update_status_file "SUCCESS: All $DONE_FINAL tasks complete"
     send_notification "Autorun SUCCESS" "All $DONE_FINAL tasks complete in $ITERATIONS_USED iterations."
     exit 0
 else
     log "INCOMPLETE: $REMAINING_FINAL tasks remain."
-    log "=========================================="
     update_status_file "INCOMPLETE: $REMAINING_FINAL tasks remain ($DONE_FINAL done)"
     send_notification "Autorun INCOMPLETE" "$REMAINING_FINAL tasks remain. $ELAPSED_TASKS completed this run."
     exit 2
