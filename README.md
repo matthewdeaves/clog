@@ -117,7 +117,9 @@ Static allocation only, zero heap usage:
 
 ## Dependency Chain
 
-clog is standalone. It is used by [peertalk](https://github.com/matthewdeaves/peertalk) and [csend](https://github.com/matthewdeaves/csend).
+[Retro68](https://github.com/matthewdeaves/Retro68) (setup.sh) -> clog -> [peertalk](https://github.com/matthewdeaves/peertalk) -> [csend](https://github.com/matthewdeaves/csend)
+
+clog itself is standalone, but Retro68 must be set up first for Classic Mac cross-compilation.
 
 ## Next Step
 
