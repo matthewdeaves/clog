@@ -6,7 +6,7 @@
 ## Overview
 
 clog exposes its entire public API through a single header
-(`clog.h`). The contract consists of 1 enum type, 5 functions,
+(`clog.h`). The contract consists of 1 enum type, 6 functions,
 4 convenience macros, and 2 compile-time control flags.
 
 ## Types
@@ -58,21 +58,35 @@ Idempotent: Yes (multiple calls are safe)
 ### clog_set_file
 
 ```
-Signature: void clog_set_file(const char *filename)
+Signature: int clog_set_file(const char *filename)
 Purpose:   Override the default output destination
 Input:     filename — path to output file, or NULL for default
-Output:    None
+Output:    0 on success, -1 if already initialized
 Side effects:
   - Stores filename for use by subsequent clog_init()
 Preconditions: Must be called BEFORE clog_init()
 Postconditions: Next init will use this file as output
-Note: If called after init, has no effect
+Note: If called after init, returns -1 with no effect
+```
+
+### clog_set_append
+
+```
+Signature: int clog_set_append(int enable)
+Purpose:   Enable append mode (preserve existing log file)
+Input:     enable — 1 to append, 0 to truncate (default)
+Output:    0 on success, -1 if already initialized
+Side effects:
+  - Sets append flag for use by subsequent clog_init()
+Preconditions: Must be called BEFORE clog_init()
+Note: If called after init, returns -1 with no effect
 ```
 
 ### clog_write
 
 ```
 Signature: void clog_write(ClogLevel level, const char *fmt, ...)
+           __attribute__((format(printf, 2, 3)))  /* GCC/Clang only */
 Purpose:   Format and write a log message
 Input:     level — severity of this message
            fmt   — printf-style format string
@@ -140,36 +154,3 @@ defined, all logging is stripped).
 | Flush strategy | Line buffered | Immediate (FSWrite per line) |
 | File creation | fopen() | Create + FSOpen |
 | File type/creator | N/A | 'TEXT' / 'CLog' |
-
-## API Changes (Feedback Remediation 2026-03-07)
-
-### clog_set_file — Updated Signature
-
-```
-Signature: int clog_set_file(const char *filename)
-Returns:   0 on success, -1 if already initialized
-```
-
-Previous signature returned void. Change is source-compatible
-(callers ignoring the return value still compile).
-
-### clog_set_append — New Function
-
-```
-Signature: int clog_set_append(int enable)
-Purpose:   Enable append mode (preserve existing log file)
-Input:     enable — 1 to append, 0 to truncate (default)
-Output:    0 on success, -1 if already initialized
-Side effects:
-  - Sets append flag for use by subsequent clog_init()
-Preconditions: Must be called BEFORE clog_init()
-Note: If called after init, returns -1 with no effect
-```
-
-### clog_write — Format Attribute Added
-
-```
-Declaration now includes (GCC/Clang only):
-  __attribute__((format(printf, 2, 3)))
-Effect: Enables compile-time format string validation
-```

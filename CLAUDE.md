@@ -24,7 +24,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/powerpc-apple-macos/cm
 ## Code Constraints
 
 - **C89/C90 strict** — no `//` comments, no mixed declarations, no VLAs
-- **No `-pedantic`** — variadic macros use `##__VA_ARGS__` GCC extension
+- **`-pedantic` safe** — clog.h wraps variadic macros in `#pragma GCC diagnostic` suppression; consumers can use `-pedantic`
 - **No dynamic allocation** — static buffers only (256B POSIX, 192B Mac)
 - **POSIX impl** needs `#define _POSIX_C_SOURCE 200112L` before includes for vsnprintf
 - **Under 500 lines total** across clog.h + clog_posix.c + clog_mac.c
@@ -32,11 +32,11 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=~/Retro68-build/toolchain/powerpc-apple-macos/cm
 
 ## Architecture
 
-- `include/clog.h` — public API: 5 functions, 4 convenience macros, compile-time stripping via `CLOG_STRIP` / `CLOG_MIN_LEVEL`
+- `include/clog.h` — public API: 6 functions, 4 convenience macros, compile-time stripping via `CLOG_STRIP` / `CLOG_MIN_LEVEL`
 - `src/clog_posix.c` — fprintf to stderr/file, gettimeofday() timestamps
 - `src/clog_mac.c` — File Manager (Create/FSOpen/FSWrite/FSClose), TickCount() timestamps
 - `tests/test_clog.c` — POSIX-only test suite, returns 0/1
-- `CMakeLists.txt` — selects implementation via `CMAKE_SYSTEM_NAME MATCHES "Retro68|RetroPPC"`
+- `CMakeLists.txt` — selects implementation via `CMAKE_SYSTEM_NAME MATCHES "Retro68|RetroPPC"`, supports `add_subdirectory()` via `CLOG_BUILD_TESTS` option
 
 ## Retro68 Toolchain
 

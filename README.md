@@ -42,6 +42,16 @@ cd build && ctest --output-on-failure
 
 Link against `libclog.a` and add `include/` to your include path.
 
+### CMake integration (add_subdirectory)
+
+```cmake
+set(CLOG_BUILD_TESTS OFF)
+add_subdirectory(path/to/clog)
+target_link_libraries(myapp PRIVATE clog)
+```
+
+Includes propagate automatically via `PUBLIC` target property.
+
 ### Compile-time stripping
 
 ```
@@ -57,6 +67,14 @@ clog_init("MyApp", CLOG_DEBUG);
 ```
 
 POSIX defaults to stderr. Classic Mac defaults to a text file named after the app.
+
+### Append mode
+
+```c
+clog_set_file("debug.log");
+clog_set_append(1);           /* Preserve existing file content */
+clog_init("MyApp", CLOG_DEBUG);
+```
 
 ## Platforms
 
