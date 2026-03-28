@@ -13,7 +13,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install deps (Linux)
         if: runner.os == 'Linux'
@@ -28,7 +28,7 @@ jobs:
   static-analysis:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
@@ -48,9 +48,9 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     container:
-      image: ghcr.io/matthewdeaves/retro68:latest
+      image: ghcr.io/matthewdeaves/retro68@sha256:11bc3005f2cd602ad311ab98d91e3999239648d89b1f6413810eafe93a2a145c
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build for 68k
         run: |
@@ -62,9 +62,9 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     container:
-      image: ghcr.io/matthewdeaves/retro68:latest
+      image: ghcr.io/matthewdeaves/retro68@sha256:11bc3005f2cd602ad311ab98d91e3999239648d89b1f6413810eafe93a2a145c
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build for PPC
         run: |
