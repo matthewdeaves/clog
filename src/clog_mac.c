@@ -18,13 +18,15 @@
 #define CLOG_BUF_SIZE 192
 
 static struct {
-    char           app_name[32];
-    ClogLevel      min_level;
-    int            initialized;
-    unsigned long  start_ticks;
-    short          ref_num;
-    const char    *custom_file;
-    int            append;
+    char              app_name[32];
+    ClogLevel         min_level;
+    int               initialized;
+    unsigned long     start_ticks;
+    short             ref_num;
+    const char       *custom_file;
+    int               append;
+    ClogNetworkSink   net_sink;
+    void             *net_sink_data;
 } clog_state;
 
 int clog_init(const char *app_name, ClogLevel level)
@@ -108,9 +110,16 @@ int clog_set_file(const char *filename)
     return 0;
 }
 
+void clog_set_network_sink(ClogNetworkSink fn, void *user_data)
+{
+    clog_state.net_sink = fn;
+    clog_state.net_sink_data = user_data;
+}
+
 void clog_write(ClogLevel level, const char *fmt, ...)
 {
     static char buf[CLOG_BUF_SIZE];
+    static volatile int in_write = 0;
     unsigned long ms;
     const char *lvl;
     int prefix_len;
@@ -118,10 +127,14 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     long count;
     va_list ap;
 
+    if (in_write)
+        return;
     if (!clog_state.initialized)
         return;
     if (level > clog_state.min_level)
         return;
+
+    in_write = 1;
 
     /* TickCount is 1/60th second; convert to ms: ticks * 1000 / 60 */
     ms = (TickCount() - clog_state.start_ticks) * 50UL / 3UL;
@@ -129,8 +142,10 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     lvl = clog_level_name(level);
 
     prefix_len = sprintf(buf, "[%lu][%s] ", ms, lvl);
-    if (prefix_len < 0)
+    if (prefix_len < 0) {
+        in_write = 0;
         return;
+    }
 
     va_start(ap, fmt);
     vsprintf(buf + prefix_len, fmt, ap);
@@ -138,8 +153,14 @@ void clog_write(ClogLevel level, const char *fmt, ...)
 
     buf[CLOG_BUF_SIZE - 3] = '\0';  /* Leave room for \r\n */
 
-    /* Append Mac line ending */
     msg_len = (int)strlen(buf);
+
+    /* Send to network sink before file write (survives crashes) */
+    if (clog_state.net_sink) {
+        clog_state.net_sink(buf, msg_len, clog_state.net_sink_data);
+    }
+
+    /* Append Mac line ending */
     buf[msg_len]     = '\r';
     buf[msg_len + 1] = '\n';
     msg_len += 2;
@@ -148,6 +169,8 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     count = (long)msg_len;
     SetFPos(clog_state.ref_num, fsFromLEOF, 0);
     FSWrite(clog_state.ref_num, &count, buf);
+
+    in_write = 0;
 }
 
 const char *clog_level_name(ClogLevel level)

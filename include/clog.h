@@ -48,6 +48,10 @@ int         clog_set_append(int enable);
 /* Runtime level control */
 void        clog_set_level(ClogLevel level);
 
+/* Network sink — callback receives each formatted log line */
+typedef void (*ClogNetworkSink)(const char *msg, int len, void *user_data);
+void        clog_set_network_sink(ClogNetworkSink fn, void *user_data);
+
 /* Logging */
 #if defined(__GNUC__)
 void        clog_write(ClogLevel level, const char *fmt, ...)

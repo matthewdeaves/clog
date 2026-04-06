@@ -18,13 +18,15 @@
 #define CLOG_BUF_SIZE 256
 
 static struct {
-    char           app_name[32];
-    ClogLevel      min_level;
-    int            initialized;
-    struct timeval  start_time;
-    FILE           *fp;
-    const char     *custom_file;
-    int            append;
+    char              app_name[32];
+    ClogLevel         min_level;
+    int               initialized;
+    struct timeval     start_time;
+    FILE              *fp;
+    const char        *custom_file;
+    int               append;
+    ClogNetworkSink   net_sink;
+    void             *net_sink_data;
 } clog_state;
 
 int clog_init(const char *app_name, ClogLevel level)
@@ -84,19 +86,30 @@ int clog_set_file(const char *filename)
     return 0;
 }
 
+void clog_set_network_sink(ClogNetworkSink fn, void *user_data)
+{
+    clog_state.net_sink = fn;
+    clog_state.net_sink_data = user_data;
+}
+
 void clog_write(ClogLevel level, const char *fmt, ...)
 {
     static char buf[CLOG_BUF_SIZE];
+    static volatile int in_write = 0;
     struct timeval now;
     unsigned long ms;
     const char *lvl;
     int prefix_len;
     va_list ap;
 
+    if (in_write)
+        return;
     if (!clog_state.initialized)
         return;
     if (level > clog_state.min_level)
         return;
+
+    in_write = 1;
 
     gettimeofday(&now, NULL);
     {
@@ -113,8 +126,10 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     lvl = clog_level_name(level);
 
     prefix_len = sprintf(buf, "[%lu][%s] ", ms, lvl);
-    if (prefix_len < 0)
+    if (prefix_len < 0) {
+        in_write = 0;
         return;
+    }
 
     va_start(ap, fmt);
     vsnprintf(buf + prefix_len, (size_t)(CLOG_BUF_SIZE - prefix_len), fmt, ap);
@@ -122,8 +137,15 @@ void clog_write(ClogLevel level, const char *fmt, ...)
 
     buf[CLOG_BUF_SIZE - 1] = '\0';
 
+    /* Send to network sink before file write (survives crashes) */
+    if (clog_state.net_sink) {
+        clog_state.net_sink(buf, (int)strlen(buf), clog_state.net_sink_data);
+    }
+
     fprintf(clog_state.fp, "%s\n", buf);
     fflush(clog_state.fp);
+
+    in_write = 0;
 }
 
 const char *clog_level_name(ClogLevel level)
