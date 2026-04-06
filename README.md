@@ -11,7 +11,7 @@ CLOG_ERR("Send failed: %d", err);
 clog_shutdown();
 ```
 
-6 functions, 4 macros. Output: `[1234][INF] Connected to PlayerTwo`
+7 functions, 4 macros. Output: `[1234][INF] Connected to PlayerTwo`
 
 ## Prerequisites
 
@@ -90,6 +90,17 @@ clog_set_file("debug.log");
 clog_set_append(1);           /* Preserve existing file content */
 clog_init("MyApp", CLOG_DEBUG);
 ```
+
+### Network sink
+
+```c
+void my_sink(const char *msg, int len, void *user_data) {
+    send_over_network(msg, len);
+}
+clog_set_network_sink(my_sink, NULL);
+```
+
+Each formatted log line is delivered to the callback before being written to file. Useful for remote log collection from Classic Macs. Re-entrant calls from within the sink are suppressed.
 
 ## Platforms
 
