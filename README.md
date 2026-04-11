@@ -117,7 +117,7 @@ Static allocation only, zero heap usage:
 | Platform | State struct | Format buffer | Total |
 |----------|-------------|---------------|-------|
 | POSIX | ~50 bytes | 256 bytes | ~310 bytes |
-| Classic Mac | ~50 bytes | 192 bytes | ~250 bytes |
+| Classic Mac | ~50 bytes | 384 bytes | ~440 bytes |
 
 ## Constraints
 

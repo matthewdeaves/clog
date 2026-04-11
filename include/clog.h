@@ -14,8 +14,8 @@
  * or any interrupt context. Set a flag, log from main loop.
  *
  * Memory footprint (static, zero heap allocation):
- *   State struct ~50 bytes + format buffer (256B POSIX, 192B Mac)
- *   Total: ~310 bytes POSIX, ~250 bytes Classic Mac
+ *   State struct ~50 bytes + format buffer (256B POSIX, 384B Mac)
+ *   Total: ~310 bytes POSIX, ~440 bytes Classic Mac
  *
  * Compile-time control:
  *   -DCLOG_STRIP          Remove all logging (zero overhead)

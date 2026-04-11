@@ -27,7 +27,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 - **C89/C90 strict** — no `//` comments, no mixed declarations, no VLAs
 - **`-pedantic` safe** — clog.h wraps variadic macros in `#pragma GCC diagnostic` suppression; consumers can use `-pedantic`
-- **No dynamic allocation** — static buffers only (256B POSIX, 192B Mac)
+- **No dynamic allocation** — static buffers only (256B POSIX, 384B Mac)
 - **POSIX impl** needs `#define _POSIX_C_SOURCE 200112L` before includes for vsnprintf
 - **Under 500 lines total** across clog.h + clog_posix.c + clog_mac.c
 - **Not interrupt-safe** — never call from ASR/notifier/ISR
