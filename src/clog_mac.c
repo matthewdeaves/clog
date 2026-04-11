@@ -39,9 +39,6 @@ int clog_init(const char *app_name, ClogLevel level)
     if (app_name == NULL)
         return -1;
 
-    /* Expand heap to maximum; idempotent if already called */
-    MaxApplZone();
-
     strncpy(clog_state.app_name, app_name, 31);
     clog_state.app_name[31] = '\0';
     clog_state.min_level = level;
@@ -123,6 +120,7 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     unsigned long ms;
     const char *lvl;
     int prefix_len;
+    int body_len;
     int msg_len;
     long count;
     va_list ap;
@@ -148,26 +146,31 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     }
 
     va_start(ap, fmt);
-    vsprintf(buf + prefix_len, fmt, ap);
+    body_len = vsprintf(buf + prefix_len, fmt, ap);
     va_end(ap);
 
-    buf[CLOG_BUF_SIZE - 3] = '\0';  /* Leave room for \r\n */
-
-    msg_len = (int)strlen(buf);
+    /* Guard against overflow: cap total length to buffer minus room for \r.
+     * vsprintf may have written past the buffer if the message was too long;
+     * this truncation prevents further damage in strlen/memcpy below. */
+    if (body_len < 0) body_len = 0;
+    msg_len = prefix_len + body_len;
+    if (msg_len > CLOG_BUF_SIZE - 2)
+        msg_len = CLOG_BUF_SIZE - 2;
+    buf[msg_len] = '\0';
 
     /* Send to network sink before file write (survives crashes) */
     if (clog_state.net_sink) {
         clog_state.net_sink(buf, msg_len, clog_state.net_sink_data);
     }
 
-    /* Append Mac line ending */
-    buf[msg_len]     = '\r';
-    buf[msg_len + 1] = '\n';
-    msg_len += 2;
+    /* Append Classic Mac line ending (\r only, not \r\n) */
+    buf[msg_len] = '\r';
+    msg_len += 1;
 
-    /* Write immediately (no buffering) */
+    /* Write immediately (no buffering).
+     * File mark advances after FSWrite — no SetFPos needed for
+     * sequential appends (Inside Macintosh Vol IV, p.10385). */
     count = (long)msg_len;
-    SetFPos(clog_state.ref_num, fsFromLEOF, 0);
     FSWrite(clog_state.ref_num, &count, buf);
 
     in_write = 0;
