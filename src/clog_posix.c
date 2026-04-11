@@ -100,6 +100,7 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     unsigned long ms;
     const char *lvl;
     int prefix_len;
+    int msg_len;
     va_list ap;
 
     if (in_write)
@@ -132,14 +133,22 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     }
 
     va_start(ap, fmt);
-    vsnprintf(buf + prefix_len, (size_t)(CLOG_BUF_SIZE - prefix_len), fmt, ap);
+    {
+        int body_len;
+        int avail = CLOG_BUF_SIZE - prefix_len;
+        body_len = vsnprintf(buf + prefix_len, (size_t)avail, fmt, ap);
+        /* vsnprintf returns chars that would be written; cap to buffer */
+        if (body_len < 0) body_len = 0;
+        if (body_len >= avail) body_len = avail - 1;
+        msg_len = prefix_len + body_len;
+    }
     va_end(ap);
 
-    buf[CLOG_BUF_SIZE - 1] = '\0';
+    buf[msg_len] = '\0';
 
     /* Send to network sink before file write (survives crashes) */
     if (clog_state.net_sink) {
-        clog_state.net_sink(buf, (int)strlen(buf), clog_state.net_sink_data);
+        clog_state.net_sink(buf, msg_len, clog_state.net_sink_data);
     }
 
     fprintf(clog_state.fp, "%s\n", buf);
