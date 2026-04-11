@@ -168,9 +168,10 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     msg_len += 1;
 
     /* Write immediately (no buffering).
-     * File mark advances after FSWrite — no SetFPos needed for
-     * sequential appends (Inside Macintosh Vol IV, p.10385). */
+     * SetFPos to EOF before each write — without this, MacTCP async I/O
+     * on PPC can interfere with the file mark, causing silent data loss. */
     count = (long)msg_len;
+    SetFPos(clog_state.ref_num, fsFromLEOF, 0);
     FSWrite(clog_state.ref_num, &count, buf);
 
     in_write = 0;
