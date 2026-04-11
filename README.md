@@ -57,9 +57,21 @@ cd build && ctest --output-on-failure
 
 Link against `libclog.a` and add `include/` to your include path.
 
-### CMake integration (add_subdirectory)
+### CMake integration
 
 ```cmake
+# Option 1: FetchContent (automatic download)
+include(FetchContent)
+FetchContent_Declare(clog
+    GIT_REPOSITORY https://github.com/matthewdeaves/clog.git
+    GIT_TAG        main
+    GIT_SHALLOW    TRUE
+)
+set(CLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(clog)
+target_link_libraries(myapp PRIVATE clog)
+
+# Option 2: Local checkout
 set(CLOG_BUILD_TESTS OFF)
 add_subdirectory(path/to/clog)
 target_link_libraries(myapp PRIVATE clog)
@@ -126,12 +138,8 @@ Static allocation only, zero heap usage:
 - Not interrupt-safe (log from main loop only)
 - Under 500 lines total
 
-## Dependency Chain
+## Dependencies
 
-[Retro68](https://github.com/matthewdeaves/Retro68) (setup.sh) -> clog -> [peertalk](https://github.com/matthewdeaves/peertalk) -> [csend](https://github.com/matthewdeaves/csend)
+clog is standalone. [Retro68](https://github.com/matthewdeaves/Retro68) is only needed for Classic Mac cross-compilation.
 
-clog itself is standalone, but Retro68 must be set up first for Classic Mac cross-compilation.
-
-## Next Step
-
-After setting up clog, set up [peertalk](https://github.com/matthewdeaves/peertalk).
+Downstream projects: [peertalk](https://github.com/matthewdeaves/peertalk) -> [csend](https://github.com/matthewdeaves/csend), [BomberTalk](https://github.com/matthewdeaves/BomberTalk)
