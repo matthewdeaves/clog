@@ -15,7 +15,11 @@
 #include <Memory.h>
 #include <Timer.h>
 
-#define CLOG_BUF_SIZE 192
+/* Buffer for formatted log output.  Classic Mac lacks vsnprintf, so
+ * vsprintf writes unbounded into this buffer.  384 bytes provides ~350
+ * chars of message body after the prefix — sufficient for any realistic
+ * log message.  Callers MUST NOT format messages longer than ~340 chars. */
+#define CLOG_BUF_SIZE 384
 
 static struct {
     char              app_name[32];
