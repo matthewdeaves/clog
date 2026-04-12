@@ -187,14 +187,16 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     SetFPos(clog_state.ref_num, fsFromLEOF, 0);
     FSWrite(clog_state.ref_num, &count, buf);
 
-    /* Flush file data to disk if requested.  FlushFile forces the access
-     * path buffer to the volume — without this, FSWrite data can be lost
-     * on crash (Inside Macintosh IV: "There's no guarantee that any bytes
-     * have been written until FlushVol is called"). */
+    /* Flush file data to disk if requested.  PBFlushFileSync forces the
+     * access path buffer to the volume — without this, FSWrite data can
+     * be lost on crash (Inside Macintosh IV: "There's no guarantee that
+     * any bytes have been written until FlushVol is called"). */
     if (clog_state.flush_mode == CLOG_FLUSH_ALL ||
         (clog_state.flush_mode == CLOG_FLUSH_ERRORS &&
          level <= CLOG_LVL_WARN)) {
-        FlushFile(clog_state.ref_num);
+        ParamBlockRec pb;
+        pb.ioParam.ioRefNum = clog_state.ref_num;
+        PBFlushFileSync(&pb);
     }
 
     in_write = 0;
