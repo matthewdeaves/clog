@@ -252,6 +252,52 @@ static void test_set_append_after_init(void)
     remove("append_init.log");
 }
 
+static void test_set_flush_modes(void)
+{
+    char buf[2048];
+    int len;
+    int rc;
+
+    /* CLOG_FLUSH_ALL */
+    clog_set_file("test_flush.log");
+    clog_set_flush(CLOG_FLUSH_ALL);
+    clog_init("TestApp", CLOG_LVL_INFO);
+    CLOG_ERR("flush err");
+    CLOG_INFO("flush info");
+    clog_shutdown();
+
+    len = read_file("test_flush.log", buf, (int)sizeof(buf));
+    check(len > 0, "flush_all output not empty");
+    check(strstr(buf, "flush err") != NULL, "flush_all ERR present");
+    check(strstr(buf, "flush info") != NULL, "flush_all INFO present");
+    remove("test_flush.log");
+
+    /* CLOG_FLUSH_ERRORS */
+    clog_set_file("test_flush2.log");
+    clog_set_flush(CLOG_FLUSH_ERRORS);
+    clog_init("TestApp", CLOG_LVL_INFO);
+    CLOG_ERR("ferr");
+    CLOG_WARN("fwrn");
+    CLOG_INFO("finf");
+    clog_shutdown();
+
+    len = read_file("test_flush2.log", buf, (int)sizeof(buf));
+    check(len > 0, "flush_errors output not empty");
+    check(strstr(buf, "ferr") != NULL, "flush_errors ERR present");
+    check(strstr(buf, "fwrn") != NULL, "flush_errors WRN present");
+    check(strstr(buf, "finf") != NULL, "flush_errors INFO present");
+    remove("test_flush2.log");
+
+    /* set_flush after init returns -1 */
+    clog_set_file("test_flush3.log");
+    clog_set_flush(CLOG_FLUSH_NONE);
+    clog_init("TestApp", CLOG_LVL_INFO);
+    rc = clog_set_flush(CLOG_FLUSH_ALL);
+    check(rc == -1, "set_flush after init returns -1");
+    clog_shutdown();
+    remove("test_flush3.log");
+}
+
 static void test_timestamp_after_sleep(void)
 {
     char buf[2048];
@@ -297,6 +343,7 @@ int main(void)
     test_set_file_null_revert();
     test_set_append();
     test_set_append_after_init();
+    test_set_flush_modes();
     test_timestamp_after_sleep();
 
     fprintf(stderr, "\n%d failure(s)\n", failures);

@@ -29,6 +29,7 @@ static struct {
     short             ref_num;
     const char       *custom_file;
     int               append;
+    int               flush_mode;
     ClogNetworkSink   net_sink;
     void             *net_sink_data;
 } clog_state;
@@ -111,6 +112,14 @@ int clog_set_file(const char *filename)
     return 0;
 }
 
+int clog_set_flush(int mode)
+{
+    if (clog_state.initialized)
+        return -1;
+    clog_state.flush_mode = mode;
+    return 0;
+}
+
 void clog_set_network_sink(ClogNetworkSink fn, void *user_data)
 {
     clog_state.net_sink = fn;
@@ -177,6 +186,16 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     count = (long)msg_len;
     SetFPos(clog_state.ref_num, fsFromLEOF, 0);
     FSWrite(clog_state.ref_num, &count, buf);
+
+    /* Flush file data to disk if requested.  FlushFile forces the access
+     * path buffer to the volume — without this, FSWrite data can be lost
+     * on crash (Inside Macintosh IV: "There's no guarantee that any bytes
+     * have been written until FlushVol is called"). */
+    if (clog_state.flush_mode == CLOG_FLUSH_ALL ||
+        (clog_state.flush_mode == CLOG_FLUSH_ERRORS &&
+         level <= CLOG_LVL_WARN)) {
+        FlushFile(clog_state.ref_num);
+    }
 
     in_write = 0;
 }

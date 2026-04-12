@@ -13,6 +13,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/time.h>
 
 #define CLOG_BUF_SIZE 256
@@ -25,6 +26,7 @@ static struct {
     FILE              *fp;
     const char        *custom_file;
     int               append;
+    int               flush_mode;
     ClogNetworkSink   net_sink;
     void             *net_sink_data;
 } clog_state;
@@ -83,6 +85,14 @@ int clog_set_file(const char *filename)
     if (clog_state.initialized)
         return -1;
     clog_state.custom_file = filename;
+    return 0;
+}
+
+int clog_set_flush(int mode)
+{
+    if (clog_state.initialized)
+        return -1;
+    clog_state.flush_mode = mode;
     return 0;
 }
 
@@ -153,6 +163,17 @@ void clog_write(ClogLevel level, const char *fmt, ...)
 
     fprintf(clog_state.fp, "%s\n", buf);
     fflush(clog_state.fp);
+
+    /* fsync forces kernel buffers to disk if requested.  fflush above
+     * only pushes stdio buffers to the kernel — data can still be lost
+     * on OS crash without fsync. */
+    if (clog_state.flush_mode == CLOG_FLUSH_ALL ||
+        (clog_state.flush_mode == CLOG_FLUSH_ERRORS &&
+         level <= CLOG_LVL_WARN)) {
+        if (clog_state.fp != stderr) {
+            fsync(fileno(clog_state.fp));
+        }
+    }
 
     in_write = 0;
 }

@@ -37,6 +37,11 @@ typedef enum {
     CLOG_LVL_DBG  = 4
 } ClogLevel;
 
+/* Flush modes for clog_set_flush() */
+#define CLOG_FLUSH_NONE   0  /* No flush after write (fastest, default) */
+#define CLOG_FLUSH_ALL    1  /* Flush to disk after every write */
+#define CLOG_FLUSH_ERRORS 2  /* Flush to disk for ERR and WARN only */
+
 /* Lifecycle */
 int         clog_init(const char *app_name, ClogLevel level);
 void        clog_shutdown(void);
@@ -44,6 +49,7 @@ void        clog_shutdown(void);
 /* Output control (call before clog_init, or ignored) */
 int         clog_set_file(const char *filename);
 int         clog_set_append(int enable);
+int         clog_set_flush(int mode);
 
 /* Runtime level control */
 void        clog_set_level(ClogLevel level);

@@ -34,7 +34,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 ## Architecture
 
-- `include/clog.h` — public API: 6 functions, 4 convenience macros, compile-time stripping via `CLOG_STRIP` / `CLOG_MIN_LEVEL`
+- `include/clog.h` — public API: 7 functions, 4 convenience macros, 3 flush mode constants, compile-time stripping via `CLOG_STRIP` / `CLOG_MIN_LEVEL`
 - `src/clog_posix.c` — fprintf to stderr/file, gettimeofday() timestamps
 - `src/clog_mac.c` — File Manager (Create/FSOpen/FSWrite/FSClose), TickCount() timestamps
 - `tests/test_clog.c` — POSIX-only test suite, returns 0/1

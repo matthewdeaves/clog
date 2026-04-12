@@ -11,7 +11,7 @@ CLOG_ERR("Send failed: %d", err);
 clog_shutdown();
 ```
 
-7 functions, 4 macros. Output: `[1234][INF] Connected to PlayerTwo`
+8 functions, 4 macros. Output: `[1234][INF] Connected to PlayerTwo`
 
 ## Prerequisites
 
@@ -102,6 +102,23 @@ clog_set_file("debug.log");
 clog_set_append(1);           /* Preserve existing file content */
 clog_init("MyApp", CLOG_DEBUG);
 ```
+
+### Flush mode
+
+Control when log data is flushed to disk. Without flushing, data can be lost on crash — on Classic Mac, `FSWrite` alone provides no guarantee bytes reach disk (Inside Macintosh IV).
+
+```c
+clog_set_flush(CLOG_FLUSH_ALL);     /* Flush every write to disk */
+clog_set_flush(CLOG_FLUSH_ERRORS);  /* Flush ERR and WARN only */
+clog_set_flush(CLOG_FLUSH_NONE);    /* No flush (default, fastest) */
+clog_init("MyApp", CLOG_DEBUG);
+```
+
+| Mode | Classic Mac | POSIX | Use case |
+|------|------------|-------|----------|
+| `CLOG_FLUSH_NONE` | No flush after `FSWrite` | `fflush` only (no `fsync`) | Maximum throughput |
+| `CLOG_FLUSH_ALL` | `FlushFile` after every write | `fflush` + `fsync` | Crash debugging |
+| `CLOG_FLUSH_ERRORS` | `FlushFile` for ERR/WARN | `fflush` + `fsync` for ERR/WARN | Balance: important messages survive, debug stays fast |
 
 ### Network sink
 
