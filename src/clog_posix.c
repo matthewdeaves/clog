@@ -36,6 +36,9 @@ int clog_init(const char *app_name, ClogLevel level)
     if (app_name == NULL)
         return -1;
 
+    if (clog_state.initialized)
+        clog_shutdown();
+
     strncpy(clog_state.app_name, app_name, 31);
     clog_state.app_name[31] = '\0';
     clog_state.min_level = level;

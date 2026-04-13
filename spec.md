@@ -76,6 +76,7 @@ The public API uses only C89 types. The variadic macros use C89's `do { } while(
 - On POSIX: opens stderr (default) or file if `clog_set_file` was called first
 - On Mac: opens/creates a text file named `app_name` (no extension) using File Manager (`FSOpen`/`Create`). Creator type `'CLog'`, file type `'TEXT'`
 - Clears the file on each init (fresh log per run), unless `clog_set_append(1)` was called
+- If already initialized, calls `clog_shutdown()` first (safe re-init, no handle leak)
 - Returns 0 on success, -1 on failure
 
 ### Writing
