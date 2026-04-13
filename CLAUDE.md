@@ -29,12 +29,12 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 - **`-pedantic` safe** — clog.h wraps variadic macros in `#pragma GCC diagnostic` suppression; consumers can use `-pedantic`
 - **No dynamic allocation** — static buffers only (256B POSIX, 384B Mac)
 - **POSIX impl** needs `#define _POSIX_C_SOURCE 200112L` before includes for vsnprintf
-- **Under 500 lines total** across clog.h + clog_posix.c + clog_mac.c
+- **Under 550 lines total** across clog.h + clog_posix.c + clog_mac.c
 - **Not interrupt-safe** — never call from ASR/notifier/ISR
 
 ## Architecture
 
-- `include/clog.h` — public API: 7 functions, 4 convenience macros, 3 flush mode constants, compile-time stripping via `CLOG_STRIP` / `CLOG_MIN_LEVEL`
+- `include/clog.h` — public API: 8 functions, 4 convenience macros, 3 flush mode constants, compile-time stripping via `CLOG_STRIP` / `CLOG_MIN_LEVEL`
 - `src/clog_posix.c` — fprintf to stderr/file, gettimeofday() timestamps
 - `src/clog_mac.c` — File Manager (Create/FSOpen/FSWrite/FSClose), TickCount() timestamps
 - `tests/test_clog.c` — POSIX-only test suite, returns 0/1
@@ -47,4 +47,4 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=$RETRO68_TOOLCHAIN/powerpc-apple-macos/cmake/ret
 
 ## Spec Artifacts
 
-Design docs in `specs/001-clog-library/`: spec.md, plan.md, tasks.md, research.md, contracts/, data-model.md, quickstart.md. Constitution at `.specify/memory/constitution.md` (v1.1.0, 9 principles).
+Design docs in `specs/001-clog-library/`: spec.md, plan.md, tasks.md, research.md, contracts/, data-model.md, quickstart.md. Constitution at `.specify/memory/constitution.md` (v1.3.0, 9 principles).
