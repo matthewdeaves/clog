@@ -329,6 +329,106 @@ static void test_timestamp_after_sleep(void)
     remove("test_sleep.log");
 }
 
+static int sink_called = 0;
+static char sink_buf[512];
+static int sink_len = 0;
+
+static void test_sink(const char *msg, int len, void *user_data)
+{
+    (void)user_data;
+    sink_called = 1;
+    if (len > (int)sizeof(sink_buf) - 1)
+        len = (int)sizeof(sink_buf) - 1;
+    memcpy(sink_buf, msg, (size_t)len);
+    sink_buf[len] = '\0';
+    sink_len = len;
+}
+
+static void test_network_sink(void)
+{
+    sink_called = 0;
+    sink_buf[0] = '\0';
+    sink_len = 0;
+
+    clog_set_file("test_sink.log");
+    clog_set_network_sink(test_sink, NULL);
+    clog_init("TestApp", CLOG_LVL_INFO);
+
+    CLOG_ERR("sink test %d", 7);
+
+    check(sink_called == 1, "network sink was called");
+    check(sink_len > 0, "network sink received non-empty message");
+    check(strstr(sink_buf, "sink test 7") != NULL,
+          "network sink received formatted message");
+
+    clog_shutdown();
+    clog_set_network_sink(NULL, NULL);
+    remove("test_sink.log");
+}
+
+static void test_runtime_level_change(void)
+{
+    char buf[2048];
+    int len;
+
+    clog_set_file("test_level_change.log");
+    clog_init("TestApp", CLOG_LVL_INFO);
+
+    CLOG_DEBUG("should not appear");
+
+    /* Widen level to include DEBUG */
+    clog_set_level(CLOG_LVL_DBG);
+    CLOG_DEBUG("should appear");
+
+    /* Narrow level to ERR only */
+    clog_set_level(CLOG_LVL_ERR);
+    CLOG_INFO("should not appear either");
+    CLOG_ERR("err visible");
+
+    clog_shutdown();
+
+    len = read_file("test_level_change.log", buf, (int)sizeof(buf));
+    check(len > 0, "level change output not empty");
+    check(strstr(buf, "should not appear") == NULL,
+          "DEBUG filtered before level change");
+    check(strstr(buf, "should appear") != NULL,
+          "DEBUG visible after widening to DBG");
+    check(strstr(buf, "should not appear either") == NULL,
+          "INFO filtered after narrowing to ERR");
+    check(strstr(buf, "err visible") != NULL,
+          "ERR visible after narrowing to ERR");
+
+    remove("test_level_change.log");
+}
+
+static void test_double_init(void)
+{
+    char buf[2048];
+    int len;
+    int rc;
+
+    /* First init writes to a file */
+    clog_set_file("test_double_init.log");
+    clog_init("TestApp", CLOG_LVL_INFO);
+    CLOG_INFO("first init");
+
+    /* Second init without explicit shutdown — should close old handle.
+     * clog_init calls clog_shutdown internally, which re-opens the path
+     * for set_file.  The same custom_file pointer persists. */
+    rc = clog_init("TestApp2", CLOG_LVL_INFO);
+    check(rc == 0, "double init succeeds");
+    CLOG_INFO("second init");
+    clog_shutdown();
+
+    /* Both messages go to the same file (custom_file persists) */
+    len = read_file("test_double_init.log", buf, (int)sizeof(buf));
+    check(len > 0, "double init file has output");
+    check(strstr(buf, "second init") != NULL,
+          "second init writes after implicit shutdown");
+
+    remove("test_double_init.log");
+}
+
 int main(void)
 {
     test_init_success();
@@ -345,6 +445,9 @@ int main(void)
     test_set_append_after_init();
     test_set_flush_modes();
     test_timestamp_after_sleep();
+    test_network_sink();
+    test_runtime_level_change();
+    test_double_init();
 
     fprintf(stderr, "\n%d failure(s)\n", failures);
     return failures > 0 ? 1 : 0;

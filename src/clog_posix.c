@@ -108,7 +108,7 @@ void clog_set_network_sink(ClogNetworkSink fn, void *user_data)
 void clog_write(ClogLevel level, const char *fmt, ...)
 {
     static char buf[CLOG_BUF_SIZE];
-    static volatile int in_write = 0;
+    static volatile int in_write = 0; /* reentrancy guard, not thread-safe */
     struct timeval now;
     unsigned long ms;
     const char *lvl;
@@ -139,8 +139,8 @@ void clog_write(ClogLevel level, const char *fmt, ...)
 
     lvl = clog_level_name(level);
 
-    prefix_len = sprintf(buf, "[%lu][%s] ", ms, lvl);
-    if (prefix_len < 0) {
+    prefix_len = snprintf(buf, CLOG_BUF_SIZE, "[%lu][%s] ", ms, lvl);
+    if (prefix_len < 0 || prefix_len >= CLOG_BUF_SIZE) {
         in_write = 0;
         return;
     }
@@ -165,14 +165,15 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     }
 
     fprintf(clog_state.fp, "%s\n", buf);
-    fflush(clog_state.fp);
 
-    /* fsync forces kernel buffers to disk if requested.  fflush above
-     * only pushes stdio buffers to the kernel — data can still be lost
-     * on OS crash without fsync. */
+    /* fflush pushes stdio buffers to the kernel; fsync forces kernel
+     * buffers to disk.  Both are skipped in FLUSH_NONE mode for maximum
+     * throughput — stderr is line-buffered by default so it still appears
+     * promptly.  FLUSH_ERRORS only flushes for ERR/WARN. */
     if (clog_state.flush_mode == CLOG_FLUSH_ALL ||
         (clog_state.flush_mode == CLOG_FLUSH_ERRORS &&
          level <= CLOG_LVL_WARN)) {
+        fflush(clog_state.fp);
         if (clog_state.fp != stderr) {
             fsync(fileno(clog_state.fp));
         }

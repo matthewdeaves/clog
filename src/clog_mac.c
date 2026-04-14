@@ -5,6 +5,9 @@
  * Timestamp: TickCount() delta from init, converted to ms
  */
 
+/* Retro68 newlib needs C99 visibility for vsnprintf */
+#define _ISOC99_SOURCE
+
 #include "clog.h"
 
 #include <stdarg.h>
@@ -15,10 +18,9 @@
 #include <Memory.h>
 #include <Timer.h>
 
-/* Buffer for formatted log output.  Classic Mac lacks vsnprintf, so
- * vsprintf writes unbounded into this buffer.  384 bytes provides ~350
- * chars of message body after the prefix — sufficient for any realistic
- * log message.  Callers MUST NOT format messages longer than ~340 chars. */
+/* Buffer for formatted log output.  384 bytes provides ~350 chars of
+ * message body after the prefix — sufficient for any realistic log
+ * message.  Retro68's newlib provides vsnprintf for bounded writes. */
 #define CLOG_BUF_SIZE 384
 
 static struct {
@@ -90,6 +92,7 @@ void clog_shutdown(void)
         return;
 
     FSClose(clog_state.ref_num);
+    FlushVol(NULL, 0);
     clog_state.ref_num = 0;
     clog_state.initialized = 0;
 }
@@ -132,7 +135,7 @@ void clog_set_network_sink(ClogNetworkSink fn, void *user_data)
 void clog_write(ClogLevel level, const char *fmt, ...)
 {
     static char buf[CLOG_BUF_SIZE];
-    static volatile int in_write = 0;
+    static volatile int in_write = 0; /* reentrancy guard, not thread-safe */
     unsigned long ms;
     const char *lvl;
     int prefix_len;
@@ -155,23 +158,21 @@ void clog_write(ClogLevel level, const char *fmt, ...)
 
     lvl = clog_level_name(level);
 
-    prefix_len = sprintf(buf, "[%lu][%s] ", ms, lvl);
-    if (prefix_len < 0) {
+    prefix_len = snprintf(buf, CLOG_BUF_SIZE, "[%lu][%s] ", ms, lvl);
+    if (prefix_len < 0 || prefix_len >= CLOG_BUF_SIZE) {
         in_write = 0;
         return;
     }
 
     va_start(ap, fmt);
-    body_len = vsprintf(buf + prefix_len, fmt, ap);
-    va_end(ap);
-
-    /* Guard against overflow: cap total length to buffer minus room for \r.
-     * vsprintf may have written past the buffer if the message was too long;
-     * this truncation prevents further damage in strlen/memcpy below. */
-    if (body_len < 0) body_len = 0;
-    msg_len = prefix_len + body_len;
-    if (msg_len > CLOG_BUF_SIZE - 2)
-        msg_len = CLOG_BUF_SIZE - 2;
+    {
+        int avail = CLOG_BUF_SIZE - prefix_len;
+        body_len = vsnprintf(buf + prefix_len, (size_t)avail, fmt, ap);
+        /* vsnprintf returns chars that would be written; cap to buffer */
+        if (body_len < 0) body_len = 0;
+        if (body_len >= avail) body_len = avail - 1;
+        msg_len = prefix_len + body_len;
+    }
     buf[msg_len] = '\0';
 
     /* Send to network sink before file write (survives crashes) */
@@ -190,16 +191,17 @@ void clog_write(ClogLevel level, const char *fmt, ...)
     SetFPos(clog_state.ref_num, fsFromLEOF, 0);
     FSWrite(clog_state.ref_num, &count, buf);
 
-    /* Flush file data to disk if requested.  PBFlushFileSync forces the
-     * access path buffer to the volume — without this, FSWrite data can
-     * be lost on crash (Inside Macintosh IV: "There's no guarantee that
-     * any bytes have been written until FlushVol is called"). */
+    /* Flush to disk if requested.  PBFlushFileSync forces the access path
+     * buffer to the volume; FlushVol then updates volume catalog metadata.
+     * Inside Macintosh IV: "There's no guarantee that any bytes have been
+     * written until FlushVol is called." */
     if (clog_state.flush_mode == CLOG_FLUSH_ALL ||
         (clog_state.flush_mode == CLOG_FLUSH_ERRORS &&
          level <= CLOG_LVL_WARN)) {
         ParamBlockRec pb;
         pb.ioParam.ioRefNum = clog_state.ref_num;
         PBFlushFileSync(&pb);
+        FlushVol(NULL, 0);
     }
 
     in_write = 0;

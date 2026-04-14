@@ -46,7 +46,9 @@ typedef enum {
 int         clog_init(const char *app_name, ClogLevel level);
 void        clog_shutdown(void);
 
-/* Output control (call before clog_init, or ignored) */
+/* Output control (call before clog_init, or ignored).
+ * clog_set_file: pointer must remain valid through clog_init and any
+ * subsequent re-init (the pointer persists across shutdown). */
 int         clog_set_file(const char *filename);
 int         clog_set_append(int enable);
 int         clog_set_flush(int mode);
