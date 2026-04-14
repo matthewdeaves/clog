@@ -11,7 +11,7 @@ CLOG_ERR("Send failed: %d", err);
 clog_shutdown();
 ```
 
-8 functions, 4 macros. Output: `[1234][INF] Connected to PlayerTwo`
+9 functions, 4 macros. Output: `[1234][INF] Connected to PlayerTwo`
 
 ## Prerequisites
 
@@ -153,7 +153,7 @@ Static allocation only, zero heap usage:
 - C89/C90 strict
 - No dynamic allocation
 - Not interrupt-safe (log from main loop only)
-- Under 500 lines total
+- Under 600 lines total
 
 ## Dependencies
 
