@@ -15,7 +15,9 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # Select platform implementation
-if(CMAKE_SYSTEM_NAME MATCHES "Retro68|RetroPPC")
+# RetroCarbon (Retro68 Carbon/OS X target) uses the Mac File Manager backend
+# too -- clog_posix.c would pull in fsync(), which the Carbon SDK lacks.
+if(CMAKE_SYSTEM_NAME MATCHES "Retro68|RetroPPC|RetroCarbon")
     set(CLOG_PLATFORM_SRC src/clog_mac.c)
 else()
     set(CLOG_PLATFORM_SRC src/clog_posix.c)

@@ -63,7 +63,18 @@ int clog_init(const char *app_name, ClogLevel level)
     pname[0] = (unsigned char)len;
     memcpy(&pname[1], fname, (size_t)len);
 
-    /* Create file (ignore error if exists) */
+    /* Create file (ignore error if exists).  Carbon dropped the classic
+       Create/FSOpen (open-by-name); the HFS variants HCreate/HOpenDF take
+       vRefNum + dirID (0/0 = default directory) and exist on classic too. */
+#if TARGET_API_MAC_CARBON
+    err = HCreate(0, 0, pname, 'CLog', 'TEXT');
+    if (err != noErr && err != dupFNErr)
+        return -1;
+
+    err = HOpenDF(0, 0, pname, fsRdWrPerm, &clog_state.ref_num);
+    if (err != noErr)
+        return -1;
+#else
     err = Create(pname, 0, 'CLog', 'TEXT');
     if (err != noErr && err != dupFNErr)
         return -1;
@@ -72,6 +83,7 @@ int clog_init(const char *app_name, ClogLevel level)
     err = FSOpen(pname, 0, &clog_state.ref_num);
     if (err != noErr)
         return -1;
+#endif
 
     if (clog_state.append) {
         /* Seek to end to preserve existing content */
